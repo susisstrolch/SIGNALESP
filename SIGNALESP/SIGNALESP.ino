@@ -29,6 +29,7 @@
 *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
+
 //#define CMP_MEMDBG 1
 
 #define CMP_cc1101
@@ -260,9 +261,7 @@ void ICACHE_RAM_ATTR handleInterrupt() {
  
 		FiFo.enqueue(sDuration);
 
-    //++fifocnt;
-	} // else => trash
-
+  }
 }
 
 void enableReceive() {
@@ -305,8 +304,6 @@ void send_raw(const uint8_t startpos, const uint16_t endpos, const int16_t *buck
 	while (stoptime > micros()) {
 		;
 	}
-	//MSG_PRINTLN("");
-
 }
 
 void send_mc(const uint8_t startpos, const uint8_t endpos, const int16_t clock)

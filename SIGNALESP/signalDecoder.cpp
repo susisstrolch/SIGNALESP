@@ -50,6 +50,11 @@ void SignalDetectorClass::bufferMove(const uint8_t start)
 		DBG_PRINT(__FUNCTION__); DBG_PRINT(" unsup "); 	DBG_PRINT(start);
 		printOut();
 	}
+
+	
+
+
+
 }
 
 
@@ -59,6 +64,8 @@ inline void SignalDetectorClass::addData(const uint8_t value)
 	{
 		DBG_PRINT(__FUNCTION__); DBG_PRINT(" msglen: "); DBG_PRINT(messageLen);
 	}
+
+
 	message[messageLen] = value;
 	messageLen++;
 }
@@ -102,7 +109,6 @@ inline void SignalDetectorClass::doDetect()
      #else
       rssiValue=0;
      #endif
-     
 		}
 
 		int8_t fidx = findpatt(*first);
