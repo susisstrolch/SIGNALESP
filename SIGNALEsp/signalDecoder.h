@@ -38,6 +38,7 @@
 	#include "WProgram.h"
 #endif
 //#define DEBUG 1
+#define CMP_cc1101
 
 #include "output.h"
 #include "bitstore.h"
@@ -60,8 +61,6 @@
 //#define DEBUGDECODE 1
 
 enum status { searching, clockfound, syncfound, detecting };
-
-
 
 class SignalDetectorClass
 {

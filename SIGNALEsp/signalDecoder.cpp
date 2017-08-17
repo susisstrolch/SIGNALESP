@@ -50,11 +50,6 @@ void SignalDetectorClass::bufferMove(const uint8_t start)
 		DBG_PRINT(__FUNCTION__); DBG_PRINT(" unsup "); 	DBG_PRINT(start);
 		printOut();
 	}
-
-	
-
-
-
 }
 
 
@@ -104,13 +99,15 @@ inline void SignalDetectorClass::doDetect()
 		}	else if (messageLen == minMessageLen) {
 			state = detecting;  // Set state to detecting, because we have more than minMessageLen data gathered, so this is no noise
  
-     #ifdef CMP_CC1101
+      #ifdef CMP_cc1101
 	    rssiValue= _rssiCallback();
      #else
       rssiValue=0;
      #endif
+
 		}
 
+    
 		int8_t fidx = findpatt(*first);
 		if (fidx >= 0) {
 			// Upd pattern

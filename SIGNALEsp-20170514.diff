@@ -1,0 +1,104 @@
+diff -ruwN ./cc1101.h ../../trebron106/SIGNALEsp-20170514/cc1101.h
+--- ./cc1101.h	2017-08-17 12:14:42.084225025 +0200
++++ ../../trebron106/SIGNALEsp-20170514/cc1101.h	2017-05-14 09:12:24.000000000 +0200
+@@ -26,7 +26,6 @@
+ 	#define CC1101_STATUS      0xC0
+ 	#define CC1100_WRITE_BURST 0x40
+   #define CC1100_READ_BURST  0x80	
+-//  #define CC1100_READ_BURST  0xC0
+ 	
+ 	#define CC1100_FREQ2       0x0D  // Frequency control word, high byte
+ 	#define CC1100_FREQ1       0x0E  // Frequency control word, middle byte
+@@ -60,7 +59,6 @@
+ 	
+ 	#define PATABLE_DEFAULT      0x84   // 5 dB default value for factory reset 0x84
+ 
+-  #define CC1100_RSSI_OFFSET 74
+ 
+ 	//------------------------------------------------------------------------------
+ 	// Chip Status Byte
+@@ -366,20 +364,7 @@
+ 
+ 	uint8_t getRSSI()
+ 	{
+-    byte rssi=0;
+-    byte value=0;
+-   
+-    rssi=readReg(CC1100_RSSI, CC1101_STATUS);
+-  
+-    if (rssi >= 128)
+-    {
+-      value = ((rssi - 256) / 2) - CC1100_RSSI_OFFSET;
+-    }
+-    else
+-    {
+-      value = (rssi / 2) - CC1100_RSSI_OFFSET;
+-    }
+-    return value;
++      return readReg(CC1100_RSSI, CC1101_STATUS);
+ 	}
+ 	
+ 	inline void setIdleMode()
+diff -ruwN ./signalDecoder.cpp ../../trebron106/SIGNALEsp-20170514/signalDecoder.cpp
+--- ./signalDecoder.cpp	2017-08-17 12:05:28.601152888 +0200
++++ ../../trebron106/SIGNALEsp-20170514/signalDecoder.cpp	2017-05-14 09:31:06.000000000 +0200
+@@ -50,6 +50,11 @@
+ 		DBG_PRINT(__FUNCTION__); DBG_PRINT(" unsup "); 	DBG_PRINT(start);
+ 		printOut();
+ 	}
++
++	
++
++
++
+ }
+ 
+ 
+@@ -59,6 +64,8 @@
+ 	{
+ 		DBG_PRINT(__FUNCTION__); DBG_PRINT(" msglen: "); DBG_PRINT(messageLen);
+ 	}
++
++
+ 	message[messageLen] = value;
+ 	messageLen++;
+ }
+@@ -102,7 +109,6 @@
+      #else
+       rssiValue=0;
+      #endif
+-     
+ 		}
+ 
+ 		int8_t fidx = findpatt(*first);
+diff -ruwN ./SIGNALEsp.ino ../../trebron106/SIGNALEsp-20170514/SIGNALEsp.ino
+--- ./SIGNALEsp.ino	2017-08-17 12:14:42.084225025 +0200
++++ ../../trebron106/SIGNALEsp-20170514/SIGNALEsp.ino	2017-05-14 09:12:24.000000000 +0200
+@@ -29,6 +29,7 @@
+ *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ 
+ */
++
+ //#define CMP_MEMDBG 1
+ 
+ #define CMP_cc1101
+@@ -260,9 +261,7 @@
+  
+ 		FiFo.enqueue(sDuration);
+ 
+-    //++fifocnt;
+-	} // else => trash
+-
++  }
+ }
+ 
+ void enableReceive() {
+@@ -305,8 +304,6 @@
+ 	while (stoptime > micros()) {
+ 		;
+ 	}
+-	//MSG_PRINTLN("");
+-
+ }
+ 
+ void send_mc(const uint8_t startpos, const uint8_t endpos, const int16_t clock)
