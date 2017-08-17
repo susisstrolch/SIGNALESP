@@ -26,7 +26,6 @@ namespace cc1101 {
 	#define CC1101_STATUS      0xC0
 	#define CC1100_WRITE_BURST 0x40
   #define CC1100_READ_BURST  0x80	
-//  #define CC1100_READ_BURST  0xC0
 	
 	#define CC1100_FREQ2       0x0D  // Frequency control word, high byte
 	#define CC1100_FREQ1       0x0E  // Frequency control word, middle byte
@@ -60,7 +59,6 @@ namespace cc1101 {
 	
 	#define PATABLE_DEFAULT      0x84   // 5 dB default value for factory reset 0x84
 
-  #define CC1100_RSSI_OFFSET 74
 
 	//------------------------------------------------------------------------------
 	// Chip Status Byte
@@ -366,20 +364,7 @@ void ccFactoryReset() {
 
 	uint8_t getRSSI()
 	{
-    byte rssi=0;
-    byte value=0;
-   
-    rssi=readReg(CC1100_RSSI, CC1101_STATUS);
-  
-    if (rssi >= 128)
-    {
-      value = ((rssi - 256) / 2) - CC1100_RSSI_OFFSET;
-    }
-    else
-    {
-      value = (rssi / 2) - CC1100_RSSI_OFFSET;
-    }
-    return value;
+      return readReg(CC1100_RSSI, CC1101_STATUS);
 	}
 	
 	inline void setIdleMode()
