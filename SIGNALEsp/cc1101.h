@@ -60,6 +60,8 @@ namespace cc1101 {
 	
 	#define PATABLE_DEFAULT      0x84   // 5 dB default value for factory reset 0x84
 
+  #define CC1100_RSSI_OFFSET 74
+
 	//------------------------------------------------------------------------------
 	// Chip Status Byte
 	//------------------------------------------------------------------------------
@@ -364,7 +366,20 @@ void ccFactoryReset() {
 
 	uint8_t getRSSI()
 	{
-		return readReg(CC1100_RSSI, CC1101_STATUS);// Pruefen ob Umwandung von uint to int den richtigen Wert zurueck gibt
+    byte rssi=0;
+    byte value=0;
+   
+    rssi=readReg(CC1100_RSSI, CC1101_STATUS);
+  
+    if (rssi >= 128)
+    {
+      value = ((rssi - 256) / 2) - CC1100_RSSI_OFFSET;
+    }
+    else
+    {
+      value = (rssi / 2) - CC1100_RSSI_OFFSET;
+    }
+    return value;
 	}
 	
 	inline void setIdleMode()

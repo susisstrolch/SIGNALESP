@@ -66,7 +66,7 @@
 #endif
 
 #define BAUDRATE               115200
-#define FIFO_LENGTH			   50
+#define FIFO_LENGTH			   255    
 #define DEBUG				   1
 
 #include <ESP8266WiFi.h>
@@ -110,7 +110,7 @@ void ICACHE_RAM_ATTR handleInterrupt();
 void enableReceive();
 void disableReceive();
 void serialEvent();
-void cronjob(void *pArg);
+void ICACHE_RAM_ATTR cronjob(void *pArg);
 int freeRam();
 void changeReciver();
 void changeFilter();
@@ -147,7 +147,7 @@ void setup() {
 
 // if you get here you have connected to the WiFi
   DBG_PRINTLN("connected....");
-  DBG_PRINTLN("Using sFIFO");
+  DBG_PRINT("Using sFIFO  Size: ");DBG_PRINTLN(FIFO_LENGTH);
 
 	pinMode(PIN_RECEIVE, INPUT);
 	pinMode(PIN_LED, OUTPUT);
@@ -173,6 +173,7 @@ void setup() {
 	DBG_PRINTLN("Starting timerjob");
 	delay(50);
 
+  os_timer_disarm(&cronTimer);
   os_timer_setfn(&cronTimer, cronjob, NULL);
   os_timer_arm(&cronTimer, 31, true);
 
@@ -202,7 +203,7 @@ void setup() {
  MSG_PRINTLN("Setup End");
 }
 
-void cronjob(void *pArg) {
+void ICACHE_RAM_ATTR cronjob(void *pArg) {
 	 const unsigned long  duration = micros() - lastTime;
 	 if (duration > maxPulse) { //Auf Maximalwert pr�fen.
 		 int sDuration = maxPulse;
