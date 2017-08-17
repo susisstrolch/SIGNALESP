@@ -1,0 +1,149 @@
+Binary files ./bin/SIGNALEsp-433MHz alte Sender-Empfaenger.bin and ../../trebron106/SIGNALEsp-20170808/bin/SIGNALEsp-433MHz alte Sender-Empfaenger.bin differ
+Binary files ./bin/SIGNALEsp-CC1101.bin and ../../trebron106/SIGNALEsp-20170808/bin/SIGNALEsp-CC1101.bin differ
+diff -ruwN ./SIGNALEsp.ino ../../trebron106/SIGNALEsp-20170808/SIGNALEsp.ino
+--- ./SIGNALEsp.ino	2017-08-17 12:19:09.663559528 +0200
++++ ../../trebron106/SIGNALEsp-20170808/SIGNALEsp.ino	2017-08-08 16:34:12.000000000 +0200
+@@ -60,12 +60,16 @@
+ #define PIN_LED                16
+ 		#define PIN_SEND              4   // gdo0Pin TX out ESP GPIO5 D1 
+ 	  #define PIN_RECEIVE           5   // gdo2Pin RX in  ESP GPIO4 D2
++    #define TRIGGER_PIN           0   // Config Reset wenn bei boot auf Gnd
+ #else
+   #define PIN_LED               16    // Message-LED
+ #define PIN_SEND               0
+   #define PIN_RECEIVE           2
++  #define TRIGGER_PIN           5   // Config Reset wenn bei boot auf Gnd
+ #endif
+ 
++#define TRIGGER_PIN 0     
++
+ #define BAUDRATE               115200
+ #define FIFO_LENGTH			   255    
+ #define DEBUG				   1
+@@ -76,10 +80,17 @@
+ char* host = "signalesp";
+ bool hascc1101 = false;
+ 
++//default custom static IP
++char static_ip[16] = "10.0.1.56";
++char static_gw[16] = "10.0.1.1";
++char static_sn[16] = "255.255.255.0";
++
++#include <FS.h>   
+ #include <ESP8266WiFi.h>
+ #include <DNSServer.h>
+ #include <ESP8266WebServer.h>
+ #include <WiFiManager.h>
++#include <ArduinoJson.h>
+ #include "webupdate.h"   //Implementierung des Web-Updaters
+ 
+ #include "cc1101.h"
+@@ -140,6 +151,15 @@
+ WiFiServer Server(23);  //  port 23 = telnet
+ WiFiClient serverClient;
+ 
++//flag for saving data
++bool shouldSaveConfig = false;
++
++//callback notifying us of the need to save config
++void saveConfigCallback () {
++  DBG_PRINTLN("Should save config");
++  shouldSaveConfig = true;
++}
++
+ void setup() {
+   
+ 	Serial.begin(BAUDRATE);
+@@ -149,13 +169,91 @@
+ 		; // wait for serial port to connect. Needed for native USB
+ 	}
+ 
++  pinMode(TRIGGER_PIN, INPUT);
++  
++  //read configuration from FS json
++  DBG_PRINTLN("mounting FS...");
++
++  if (SPIFFS.begin()) {
++    DBG_PRINTLN("mounted file system");
++    if (SPIFFS.exists("/config.json")) {
++      //file exists, reading and loading
++      DBG_PRINTLN("reading config file");
++      File configFile = SPIFFS.open("/config.json", "r");
++      if (configFile) {
++        DBG_PRINTLN("opened config file");
++        size_t size = configFile.size();
++        // Allocate a buffer to store contents of the file.
++        std::unique_ptr<char[]> buf(new char[size]);
++
++        configFile.readBytes(buf.get(), size);
++        DynamicJsonBuffer jsonBuffer;
++        JsonObject& json = jsonBuffer.parseObject(buf.get());
++        json.printTo(Serial);
++        if (json.success()) {
++          DBG_PRINTLN("\nparsed json");
++          if(json["ip"]) {
++            DBG_PRINTLN("setting custom ip from config");
++            //static_ip = json["ip"];
++            strcpy(static_ip, json["ip"]);
++            strcpy(static_gw, json["gateway"]);
++            strcpy(static_sn, json["subnet"]);
++            DBG_PRINTLN(static_ip);
++          } else {
++            DBG_PRINTLN("no custom ip in config");
++          }
++        } else {
++          DBG_PRINTLN("failed to load json config");
++        }
++      }
++    }
++  } else {
++    DBG_PRINTLN("failed to mount FS");
++  }
++  //end read
++
+   WiFiManager wifiManager;
+-//  wifiManager.resetSettings();
++
++   if ( digitalRead(TRIGGER_PIN) == LOW ) {
++    wifiManager.resetSettings(); 
++   }
++
++  //set config save notify callback
++  wifiManager.setSaveConfigCallback(saveConfigCallback);
++
++  IPAddress _ip,_gw,_sn;
++
++  _ip.fromString(static_ip);
++  _gw.fromString(static_gw);
++  _sn.fromString(static_sn);
++  wifiManager.setSTAStaticIPConfig(_ip, _gw, _sn);   
++ 
+   wifiManager.autoConnect("AutoConnectAP");
+ 
+ // if you get here you have connected to the WiFi
+   DBG_PRINTLN("connected....");
+ 
++//save the custom parameters to FS
++  if (shouldSaveConfig) {
++    DBG_PRINTLN("saving config");   
++    DynamicJsonBuffer jsonBuffer;
++    JsonObject& json = jsonBuffer.createObject();
++
++    json["ip"] = WiFi.localIP().toString();
++    json["gateway"] = WiFi.gatewayIP().toString();
++    json["subnet"] = WiFi.subnetMask().toString();
++
++    File configFile = SPIFFS.open("/config.json", "w");
++    if (!configFile) {
++      DBG_PRINTLN("failed to open config file for writing");
++    }
++
++    json.prettyPrintTo(Serial);
++    json.printTo(configFile);
++    configFile.close();
++    //end save
++  }
++
+   DBG_PRINT(PROGVERS " SIGNALEsp "); 
+   DBG_PRINTLN("- compiled at " __DATE__ " " __TIME__);   
+   DBG_PRINT("Using sFIFO  Size: ");DBG_PRINTLN(FIFO_LENGTH);
