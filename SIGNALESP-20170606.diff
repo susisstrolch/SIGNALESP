@@ -1,0 +1,234 @@
+diff -ruwN ./signalDecoder.cpp ../../trebron106/SIGNALEsp-20170606/signalDecoder.cpp
+--- ./signalDecoder.cpp	2017-08-17 12:55:55.531703303 +0200
++++ ../../trebron106/SIGNALEsp-20170606/signalDecoder.cpp	2017-05-18 10:51:38.000000000 +0200
+@@ -50,11 +50,6 @@
+ 		DBG_PRINT(__FUNCTION__); DBG_PRINT(" unsup "); 	DBG_PRINT(start);
+ 		printOut();
+ 	}
+-
+-	
+-
+-
+-
+ }
+ 
+ 
+@@ -104,13 +99,15 @@
+ 		}	else if (messageLen == minMessageLen) {
+ 			state = detecting;  // Set state to detecting, because we have more than minMessageLen data gathered, so this is no noise
+  
+-     #ifdef CMP_CC1101
++      #ifdef CMP_cc1101
+ 	    rssiValue= _rssiCallback();
+      #else
+       rssiValue=0;
+      #endif
++
+ 		}
+ 
++    
+ 		int8_t fidx = findpatt(*first);
+ 		if (fidx >= 0) {
+ 			// Upd pattern
+diff -ruwN ./signalDecoder.h ../../trebron106/SIGNALEsp-20170606/signalDecoder.h
+--- ./signalDecoder.h	2017-08-17 12:49:16.325205572 +0200
++++ ../../trebron106/SIGNALEsp-20170606/signalDecoder.h	2017-05-18 10:51:08.000000000 +0200
+@@ -38,6 +38,7 @@
+ 	#include "WProgram.h"
+ #endif
+ //#define DEBUG 1
++#define CMP_cc1101
+ 
+ #include "output.h"
+ #include "bitstore.h"
+@@ -61,8 +62,6 @@
+ 
+ enum status { searching, clockfound, syncfound, detecting };
+ 
+-
+-
+ class SignalDetectorClass
+ {
+ 	friend class ManchesterpatternDecoder;
+diff -ruwN ./SIGNALESP.ino ../../trebron106/SIGNALEsp-20170606/SIGNALESP.ino
+--- ./SIGNALESP.ino	2017-08-17 12:55:55.531703303 +0200
++++ ../../trebron106/SIGNALEsp-20170606/SIGNALESP.ino	2017-06-06 12:27:46.000000000 +0200
+@@ -70,10 +70,17 @@
+ #define FIFO_LENGTH			   255    
+ #define DEBUG				   1
+ 
++char* update_username = "admin";  //Benutzername zum login für die OTA-Programmierung
++char* update_password = "SIGNALEsp"; //Passwort
++
++char* host = "signalesp";
++bool hascc1101 = false;
++
+ #include <ESP8266WiFi.h>
+ #include <DNSServer.h>
+ #include <ESP8266WebServer.h>
+ #include <WiFiManager.h>
++#include "webupdate.h"   //Implementierung des Web-Updaters
+ 
+ #include "cc1101.h"
+ #include <EEPROM.h>
+@@ -94,7 +101,7 @@
+ volatile bool blinkLED = false;
+ String cmdstring = "";
+ volatile unsigned long lastTime = micros();
+-bool hascc1101 = false;
++
+ 
+ extern "C" {
+ #include "user_interface.h"
+@@ -148,8 +155,12 @@
+ 
+ // if you get here you have connected to the WiFi
+   DBG_PRINTLN("connected....");
++
++  DBG_PRINT(PROGVERS " SIGNALEsp "); 
++  DBG_PRINTLN("- compiled at " __DATE__ " " __TIME__);   
+   DBG_PRINT("Using sFIFO  Size: ");DBG_PRINTLN(FIFO_LENGTH);
+ 
++ 
+ 	pinMode(PIN_RECEIVE, INPUT);
+ 	pinMode(PIN_LED, OUTPUT);
+ 
+@@ -188,6 +199,8 @@
+ 
+  	cmdstring.reserve(40);
+ 	
++  WiFiVerbindung(update_username, update_password);
++
+ #ifdef CMP_cc1101
+  if (!hascc1101 || cc1101::regCheck()) {
+ 		enableReceive();
+@@ -202,6 +215,12 @@
+ 	#endif
+ 
+  MSG_PRINTLN("Setup End");
++
++// Software Watchdog sperren
++ wdt_disable();
++ 
++//Software Watchdog Timeout setzen
++ wdt_enable(WDTO_4S);
+ }
+ 
+ void ICACHE_RAM_ATTR cronjob(void *pArg) {
+@@ -223,8 +242,15 @@
+ 	static int aktVal = 0;
+ 	bool state;
+ 
++// Watchdog Triggern 
++  wdt_reset();
++  
++  httpServer.handleClient();
++  delay(1);
++
+ 	serialEvent();
+ 	ethernetEvent();
++  
+ 	if (command_available) {
+ 		command_available = false;
+ 		HandleCommand();
+@@ -232,7 +258,9 @@
+ 		blinkLED = true;
+ 	}
+ //  yield();
+-//	wdt_reset();
++
++  wdt_reset();
++  
+ 	while (FiFo.count()>0) { //Puffer auslesen und an Dekoder uebergeben
+ 		aktVal = FiFo.dequeue();
+ 		state = musterDec.decode(&aktVal);
+@@ -465,8 +493,9 @@
+ 		MSG_PRINTLN("");
+ 	}
+ 
+-	enableReceive();	// enable the receiver
+ 	MSG_PRINTLN(cmdstring); // echo
++	enableReceive();	// enable the receiver
++ 
+ }
+ 
+ //================================= Kommandos ======================================
+@@ -491,6 +520,7 @@
+   #define  cmd_read  'r'      // read EEPROM
+   #define  cmd_patable 'x' 
+   #define  cmd_ccFactoryReset 'e'  // EEPROM / factory reset
++  #define  cmd_boot 'b'   // Reboot
+ 
+   DBG_PRINT("CMD: ");
+   DBG_PRINTLN(cmdstring);
+@@ -514,6 +544,7 @@
+ 		MSG_PRINT(cmd_patable);MSG_PRINT(cmd_space);
+ 		MSG_PRINT(cmd_ccFactoryReset);MSG_PRINT(cmd_space);
+ 	}
++  MSG_PRINT(cmd_boot);MSG_PRINT(cmd_space);
+ 		MSG_PRINTLN("");
+ 	}
+ 	// V: Version
+@@ -611,6 +642,13 @@
+      cc1101::ccFactoryReset();
+      cc1101::CCinit();
+   }
++  else if (cmdstring.charAt(0) == cmd_boot) {
++   DBG_PRINTLN("## Reboot ##");
++   disableReceive();
++   wdt_disable();
++   delay(500);
++   ESP.restart(); 
++  }
+   else {
+ 		MSG_PRINTLN(F("Unsupported command"));
+ 	}
+@@ -787,16 +825,16 @@
+   if (EEPROM.read(EE_MAGIC_OFFSET) == VERSION_1 && EEPROM.read(EE_MAGIC_OFFSET+1) == VERSION_2) {
+     DBG_PRINTLN("Reading values fom eeprom");
+   } else {
+-     storeFunctions(1, 1, 1);    // Init EEPROM with all flags enabled
++   
+     //hier fehlt evtl ein getFunctions()
+     DBG_PRINTLN("Init eeprom to defaults after flash");
+      EEPROM.write(EE_MAGIC_OFFSET, VERSION_1);
+      EEPROM.write(EE_MAGIC_OFFSET+1, VERSION_2);
+-    // if (hascc1101) {                // der ccFactoryReset muss auch durchgefuehrt werden, wenn der cc1101 nicht erkannt wurde
+-    cc1101::ccFactoryReset();
+-    //}
+-  }
+   EEPROM.commit();
++     storeFunctions(1, 1, 1);    // Init EEPROM with all flags enabled
++
++     cc1101::ccFactoryReset(); // der ccFactoryReset muss auch durchgefuehrt werden, wenn der cc1101 nicht erkannt wurde
++  }
+   EEPROM.end(); 
+   getFunctions(&musterDec.MSenabled, &musterDec.MUenabled, &musterDec.MCenabled);
+ }
+diff -ruwN ./webupdate.h ../../trebron106/SIGNALEsp-20170606/webupdate.h
+--- ./webupdate.h	1970-01-01 01:00:00.000000000 +0100
++++ ../../trebron106/SIGNALEsp-20170606/webupdate.h	2017-05-18 10:41:16.000000000 +0200
+@@ -0,0 +1,23 @@
++#include "Arduino.h"
++#include <ESP8266WiFi.h>
++#include <WiFiClient.h>
++#include <ESP8266WebServer.h>
++#include <ESP8266mDNS.h>
++#include <ESP8266HTTPUpdateServer.h>
++
++#include "output.h"
++
++ESP8266WebServer httpServer(80);
++ESP8266HTTPUpdateServer httpUpdater;
++
++void WiFiVerbindung(char* update_username, char* update_password)
++{
++   MDNS.begin(host);
++
++  httpUpdater.setup(&httpServer,update_username, update_password);
++  httpServer.begin();
++
++  MDNS.addService("http", "tcp", 80);
++  DBG_PRINTLN("HTTPUpdateServer ready!");
++  DBG_PRINTLN(WiFi.localIP());
++}
