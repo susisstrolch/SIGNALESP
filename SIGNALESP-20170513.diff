@@ -1,0 +1,81 @@
+diff -ruwN ./cc1101.h ../../trebron106/SIGNALEsp-20170513/cc1101.h
+--- ./cc1101.h	2017-08-17 12:49:16.321205628 +0200
++++ ../../trebron106/SIGNALEsp-20170513/cc1101.h	2017-05-13 11:05:20.000000000 +0200
+@@ -60,6 +60,8 @@
+ 	
+ 	#define PATABLE_DEFAULT      0x84   // 5 dB default value for factory reset 0x84
+ 
++  #define CC1100_RSSI_OFFSET 74
++
+ 	//------------------------------------------------------------------------------
+ 	// Chip Status Byte
+ 	//------------------------------------------------------------------------------
+@@ -364,7 +366,20 @@
+ 
+ 	uint8_t getRSSI()
+ 	{
+-		return readReg(CC1100_RSSI, CC1101_STATUS);// Pruefen ob Umwandung von uint to int den richtigen Wert zurueck gibt
++    byte rssi=0;
++    byte value=0;
++   
++    rssi=readReg(CC1100_RSSI, CC1101_STATUS);
++  
++    if (rssi >= 128)
++    {
++      value = ((rssi - 256) / 2) - CC1100_RSSI_OFFSET;
++    }
++    else
++    {
++      value = (rssi / 2) - CC1100_RSSI_OFFSET;
++    }
++    return value;
+ 	}
+ 	
+ 	inline void setIdleMode()
+diff -ruwN ./SIGNALESP.ino ../../trebron106/SIGNALEsp-20170513/SIGNALESP.ino
+--- ./SIGNALESP.ino	2017-08-17 12:49:16.325205572 +0200
++++ ../../trebron106/SIGNALEsp-20170513/SIGNALESP.ino	2017-05-13 18:17:50.000000000 +0200
+@@ -66,7 +66,7 @@
+ #endif
+ 
+ #define BAUDRATE               115200
+-#define FIFO_LENGTH			   50
++#define FIFO_LENGTH			   255    
+ #define DEBUG				   1
+ 
+ #include <ESP8266WiFi.h>
+@@ -110,7 +110,7 @@
+ void enableReceive();
+ void disableReceive();
+ void serialEvent();
+-void cronjob(void *pArg);
++void ICACHE_RAM_ATTR cronjob(void *pArg);
+ int freeRam();
+ void changeReciver();
+ void changeFilter();
+@@ -147,7 +147,7 @@
+ 
+ // if you get here you have connected to the WiFi
+   DBG_PRINTLN("connected....");
+-  DBG_PRINTLN("Using sFIFO");
++  DBG_PRINT("Using sFIFO  Size: ");DBG_PRINTLN(FIFO_LENGTH);
+ 
+ 	pinMode(PIN_RECEIVE, INPUT);
+ 	pinMode(PIN_LED, OUTPUT);
+@@ -173,6 +173,7 @@
+ 	DBG_PRINTLN("Starting timerjob");
+ 	delay(50);
+ 
++  os_timer_disarm(&cronTimer);
+   os_timer_setfn(&cronTimer, cronjob, NULL);
+   os_timer_arm(&cronTimer, 31, true);
+ 
+@@ -202,7 +203,7 @@
+  MSG_PRINTLN("Setup End");
+ }
+ 
+-void cronjob(void *pArg) {
++void ICACHE_RAM_ATTR cronjob(void *pArg) {
+ 	 const unsigned long  duration = micros() - lastTime;
+ 	 if (duration > maxPulse) { //Auf Maximalwert pr�fen.
+ 		 int sDuration = maxPulse;
